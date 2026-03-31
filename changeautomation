@@ -1,54 +1,152 @@
-// --- CONFIGURE THESE VALUES
-var CAB_DELEGATE_SYS_ID = 'value'; // Replace with actual CAB delegate sys_id
+// ===== CONFIGURATION =====
+var CONFIG = {
+  cabDelegate: 'value', // Replace with actual CAB delegate sys_id
+  assignedTo: 'value', // Replace with actual assigned_to user sys_id
+  assignmentGroup: 'value', // Replace with actual assignment group sys_id
+  releaseId: 'value', // Replace with actual u_release sys_id
+  category: 'value', // Replace with actual category sys_id
+  state: 2 // 2 = Assess
+};
 
-// --- GET CURRENT MONTH FOR DESCRIPTIONS --.
-var now = new GlideDateTime () ;
-var gdt = new GlideDateTime (now) ;
-var monthName = gdt.getMonthUTC() + 1; // Months are 0-based, add 1
-var monthNames = ['January', 'February', 'March', 'April', 'May', 'June' , 'July', 'August', 'September' , 'October', 'November', 'December' ];
-var currentMonth = monthNames [gdt.getMonthUTC () ];
+// ===== FIELD MAPPING =====
+// Centralized field configuration - add/remove/modify fields here as needed
+// Null values are dynamically resolved in createChangeRequest()
+var FIELD_MAPPING = {
+  short_description: null, // Dynamic: template + month
+  description: null, // Dynamic: from template
+  u_environment: null, // Dynamic: from template
+  category: CONFIG.category,
+  state: CONFIG.state,
+  cab_delegate: CONFIG.cabDelegate,
+  assigned_to: CONFIG.assignedTo,
+  assignment_group: CONFIG.assignmentGroup,
+  u_release: CONFIG.releaseId,
+  cab_date: null // Dynamic: first Thursday
+  
+  // Add additional required fields below as you discover them from your dump:
+  // priority: 'value',
+  // urgency: 'value',
+  // impact: 'value',
+  // type: 'value',
+  // risk_assessment: 'value',
+  // implementation_plan: 'value',
+};
 
-// --- FIND FIRST THURSDAY OF CURRENT MONTH ---
-function getFirstThursday (year, month) {
-var date = new GlideDateTime (year + '-' + (month < 10 ? '0' : '") + month + '-01 00:00:00');
-for (var i = 0; i < 7; i++) {
-if (date.getDayOfWeekLocalTime () == 5) { // Thursday is 5 (1=Sunday)
-return date.getLocalDate () .toString () ; // Returns yyyy-MM-dd
+// Change request templates - one per environment
+var CHANGES = [
+  {
+    environment: 'Production',
+    shortDesc: 'Monthly Production Patching',
+    description: 'Automatically generated change for monthly production patching.'
+  },
+  {
+    environment: 'Non-Production',
+    shortDesc: 'Monthly Non Production Patching',
+    description: 'Automatically generated change for monthly non-production patching.'
+  }
+];
 
-date.addDaysLocalTime (1) ;
+// ===== HELPER FUNCTIONS =====
 
-return null;
+/**
+ * Get first Thursday of a given month
+ * @param {number} year - Full year (e.g., 2025)
+ * @param {number} month - Month 1-12
+ * @returns {string} Date in yyyy-MM-dd format, or null if not found
+ */
+function getFirstThursday(year, month) {
+  var dateStr = year + '-' + (month < 10 ? '0' : '') + month + '-01 00:00:00';
+  var date = new GlideDateTime(dateStr);
+  
+  // Iterate through first 7 days to find Thursday (5 = Thursday)
+  for (var i = 0; i < 7; i++) {
+    if (date.getDayOfWeekLocalTime() === 5) {
+      return date.getLocalDate().toString();
+    }
+    date.addDaysLocalTime(1);
+  }
+  
+  return null; // Should never happen, but safe fallback
+}
 
-var year = gdt.getYearUTC() ;
-var month = gdt.getMonthUTC() + 1;
-var firstThursday = getFirstThursday (year, month) ;
+/**
+ * Get current month name
+ * @returns {string} Month name (e.g., 'January')
+ */
+function getCurrentMonthName() {
+  var monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'];
+  var now = new GlideDateTime();
+  return monthNames[now.getMonthUTC()];
+}
 
-// --- CREATE PRODUCTION CHANGE ---
-var prodChange = new GlideRecord ('change_request') ;
-prodChange. initialize ();
-prodChange.short_description = 'Monthly Production Patching for ' + currentMonth;
-prodChange.description = 'Automatically generated change for monthly production patching.';
-prodChange.category = 'maintenance'; // Adjust as needed
-// Optionally set your group sys_id
-prodChange. u_environment = 'Production'; // Use your actual field or remove if not used
-prodChange.cab_delegate = CAB_DELEGATE_SYS_ID;
-prodChange.state = 1; // New
-// Set additional fields as needed
-prodChange. insert () ;
+/**
+ * Create a change request record
+ * @param {object} template - Change template with environment, shortDesc, description
+ * @param {string} cabDate - CAB date in yyyy-MM-dd format
+ * @returns {object} Insert result object
+ */
+function createChangeRequest(template, cabDate) {
+  var change = new GlideRecord('change_request');
+  change.initialize();
+  
+  var monthName = getCurrentMonthName();
+  
+  // Apply all fields from FIELD_MAPPING, resolving dynamic values
+  for (var fieldName in FIELD_MAPPING) {
+    if (FIELD_MAPPING.hasOwnProperty(fieldName)) {
+      var fieldValue = FIELD_MAPPING[fieldName];
+      
+      // Resolve dynamic fields
+      if (fieldName === 'short_description' && fieldValue === null) {
+        change[fieldName] = template.shortDesc + ' for ' + monthName;
+      } else if (fieldName === 'description' && fieldValue === null) {
+        change[fieldName] = template.description;
+      } else if (fieldName === 'u_environment' && fieldValue === null) {
+        change[fieldName] = template.environment;
+      } else if (fieldName === 'cab_date' && fieldValue === null) {
+        change[fieldName] = cabDate;
+      } else if (fieldValue !== null) {
+        // Apply static fields
+        change[fieldName] = fieldValue;
+      }
+    }
+  }
+  
+  var result = change.insert();
+  return {
+    success: !!result,
+    sysId: result,
+    environment: template.environment
+  };
+}
 
-// --- CREATE NON-PRODUCTION CHANGE ---
-var nonProdChange = new GlideRecord ('change_request') ;
-nonProdChange. initialize ();
-nonProdChange. short_description = 'Monthly Non Production Patching for ' + currentMonth;
-nonProdChange.description = 'Automatically generated change for monthly non-production patching.';|
-nonProdChange.category = 'maintenance'; // Adjust as needed
-nonProdChange. assignment_group = ''; // Optionally set your group sys_id
-prodChange.u_environment = 'Non-Production'; // Use your actual field or remove if not used
-nonProdChange. cab_delegate = CAB_DELEGATE_SYS_ID;
-nonProdChange.state = 1; // New
-// Set the CAB date field to the first Thursday
-nonProdChange.cab_date = firstThursday; // Use your actual CAB date field name
-// Set additional fields as needed
-nonProdChange. insert ();
+// ===== MAIN EXECUTION =====
 
-prodChange. assignment_group = 'value';
+try {
+  var now = new GlideDateTime();
+  var year = now.getYearUTC();
+  var month = now.getMonthUTC() + 1; // Convert 0-based to 1-based
+  
+  var firstThursday = getFirstThursday(year, month);
+  
+  if (!firstThursday) {
+    gs.error('Failed to calculate first Thursday of the month');
+  } else {
+    var results = [];
+    
+    // Create a change request for each environment
+    for (var i = 0; i < CHANGES.length; i++) {
+      var result = createChangeRequest(CHANGES[i], firstThursday);
+      results.push(result);
+      
+      if (result.success) {
+        gs.info('Created ' + result.environment + ' change request: ' + result.sysId);
+      } else {
+        gs.error('Failed to create ' + result.environment + ' change request');
+      }
+    }
+  }
+} catch (e) {
+  gs.error('Error in change request creation: ' + e.message);
+}
