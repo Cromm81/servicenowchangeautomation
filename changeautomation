@@ -1,0 +1,54 @@
+// --- CONFIGURE THESE VALUES
+var CAB_DELEGATE_SYS_ID = 'value'; // Replace with actual CAB delegate sys_id
+
+// --- GET CURRENT MONTH FOR DESCRIPTIONS --.
+var now = new GlideDateTime () ;
+var gdt = new GlideDateTime (now) ;
+var monthName = gdt.getMonthUTC() + 1; // Months are 0-based, add 1
+var monthNames = ['January', 'February', 'March', 'April', 'May', 'June' , 'July', 'August', 'September' , 'October', 'November', 'December' ];
+var currentMonth = monthNames [gdt.getMonthUTC () ];
+
+// --- FIND FIRST THURSDAY OF CURRENT MONTH ---
+function getFirstThursday (year, month) {
+var date = new GlideDateTime (year + '-' + (month < 10 ? '0' : '") + month + '-01 00:00:00');
+for (var i = 0; i < 7; i++) {
+if (date.getDayOfWeekLocalTime () == 5) { // Thursday is 5 (1=Sunday)
+return date.getLocalDate () .toString () ; // Returns yyyy-MM-dd
+
+date.addDaysLocalTime (1) ;
+
+return null;
+
+var year = gdt.getYearUTC() ;
+var month = gdt.getMonthUTC() + 1;
+var firstThursday = getFirstThursday (year, month) ;
+
+// --- CREATE PRODUCTION CHANGE ---
+var prodChange = new GlideRecord ('change_request') ;
+prodChange. initialize ();
+prodChange.short_description = 'Monthly Production Patching for ' + currentMonth;
+prodChange.description = 'Automatically generated change for monthly production patching.';
+prodChange.category = 'maintenance'; // Adjust as needed
+// Optionally set your group sys_id
+prodChange. u_environment = 'Production'; // Use your actual field or remove if not used
+prodChange.cab_delegate = CAB_DELEGATE_SYS_ID;
+prodChange.state = 1; // New
+// Set additional fields as needed
+prodChange. insert () ;
+
+// --- CREATE NON-PRODUCTION CHANGE ---
+var nonProdChange = new GlideRecord ('change_request') ;
+nonProdChange. initialize ();
+nonProdChange. short_description = 'Monthly Non Production Patching for ' + currentMonth;
+nonProdChange.description = 'Automatically generated change for monthly non-production patching.';|
+nonProdChange.category = 'maintenance'; // Adjust as needed
+nonProdChange. assignment_group = ''; // Optionally set your group sys_id
+prodChange.u_environment = 'Non-Production'; // Use your actual field or remove if not used
+nonProdChange. cab_delegate = CAB_DELEGATE_SYS_ID;
+nonProdChange.state = 1; // New
+// Set the CAB date field to the first Thursday
+nonProdChange.cab_date = firstThursday; // Use your actual CAB date field name
+// Set additional fields as needed
+nonProdChange. insert ();
+
+prodChange. assignment_group = 'value';
