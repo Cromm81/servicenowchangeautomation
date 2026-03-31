@@ -126,26 +126,23 @@ function calculateSchedule(patchTuesday, template) {
     scheduleDate.addDaysLocalTime(7); // Add 7 days to get 2nd Saturday
   }
   
-  // Create start date/time by cloning the schedule date and setting the time
-  var startDateTime = new GlideDateTime(scheduleDate);
-  var startTimeParts = template.startTime.split(':');
-  startDateTime.setHourLocalTime(parseInt(startTimeParts[0]));
-  startDateTime.setMinuteLocalTime(parseInt(startTimeParts[1]));
-  startDateTime.setSecondLocalTime(parseInt(startTimeParts[2]));
+  // Get the date in proper format (YYYY-MM-DD)
+  var dateString = scheduleDate.getLocalDate().toString(); // e.g., "2025-04-10"
   
-  // Create end date/time
-  var endDateTime = new GlideDateTime(scheduleDate);
+  // Build start datetime string manually
+  var startDateTimeStr = dateString + ' ' + template.startTime; // e.g., "2025-04-10 14:00:00"
+  
+  // Build end datetime string - add day offset if needed before constructing
+  var endScheduleDate = new GlideDateTime(scheduleDate);
   if (template.endDateOffset) {
-    endDateTime.addDaysLocalTime(template.endDateOffset);
+    endScheduleDate.addDaysLocalTime(template.endDateOffset);
   }
-  var endTimeParts = template.endTime.split(':');
-  endDateTime.setHourLocalTime(parseInt(endTimeParts[0]));
-  endDateTime.setMinuteLocalTime(parseInt(endTimeParts[1]));
-  endDateTime.setSecondLocalTime(parseInt(endTimeParts[2]));
+  var endDateString = endScheduleDate.getLocalDate().toString();
+  var endDateTimeStr = endDateString + ' ' + template.endTime; // e.g., "2025-04-13 13:00:00"
   
   return {
-    startDate: startDateTime.getLocalTime().toString(),
-    endDate: endDateTime.getLocalTime().toString()
+    startDate: startDateTimeStr,
+    endDate: endDateTimeStr
   };
 }
 
